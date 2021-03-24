@@ -47,8 +47,8 @@ class NumericStatistics(AnalyzerMixin):
             weight = np.ones(len(x), dtype=np.float64)
         self.sum_of_values += np.sum(weight * x)
         self.sum_of_values2 += np.sum(weight * x ** 2)
-        self.sum_of_values2 += np.sum(weight * x ** 3)
-        self.sum_of_values2 += np.sum(weight * x ** 4)
+        self.sum_of_values3 += np.sum(weight * x ** 3)
+        self.sum_of_values4 += np.sum(weight * x ** 4)
         self.sum_of_weights += np.sum(weight)
 
         xmin = x.min()
@@ -115,8 +115,8 @@ class NumericStatistics(AnalyzerMixin):
         mean = self.mean
         stddev = self.stddev
         x2 = self.sum_of_values2 / self.sum_of_weights
-        x3 = self.sum_of_values2 / self.sum_of_weights
-        x4 = self.sum_of_values2 / self.sum_of_weights
+        x3 = self.sum_of_values3 / self.sum_of_weights
+        x4 = self.sum_of_values4 / self.sum_of_weights
 
         try:
             return (x4 - 3 * mean ** 4  - 4 * mean * x3 + 6 * mean ** 2 * x2) / stddev  ** 4 - 3
