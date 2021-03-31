@@ -3,6 +3,8 @@ extern crate regex;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
+extern crate rayon;
+extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;
@@ -10,6 +12,13 @@ extern crate serde_derive;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::result::Result;
+use std::sync::Arc;
+use std::sync::Mutex;
+use rayon::prelude::*;
+use rand::prelude::*;
+use rand::thread_rng;
+use rand::distributions::{Distribution, Standard};
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum MeasureValue {
@@ -74,7 +83,7 @@ impl Measure {
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-struct NumericStatistics {
+pub struct NumericStatistics {
     sum_of_values: f64,
     sum_of_values2: f64,
     sum_of_values3: f64,
@@ -85,7 +94,7 @@ struct NumericStatistics {
 }
 
 impl NumericStatistics {
-    fn new() -> NumericStatistics {
+    pub fn new() -> NumericStatistics {
         NumericStatistics {
             sum_of_values: 0.0,
             sum_of_values2: 0.0,
@@ -97,11 +106,11 @@ impl NumericStatistics {
         }
     }
 
-    fn create_empty(&self) -> NumericStatistics {
+    pub fn create_empty(&self) -> NumericStatistics {
         NumericStatistics::new()
     }
 
-    fn measures(&self) -> Vec<Measure> {
+    pub fn measures(&self) -> Vec<Measure> {
         vec![
             Measure::new("mean"),
             Measure::new("variance"),
@@ -113,7 +122,7 @@ impl NumericStatistics {
         ]
     }
 
-    fn results(&self) -> HashMap<String, MeasureValue> {
+    pub fn results(&self) -> HashMap<String, MeasureValue> {
         let mut res = HashMap::new();
         res.insert(
             String::from("mean"),
@@ -146,7 +155,7 @@ impl NumericStatistics {
         res
     }
 
-    fn add_weighted(&mut self, x: &[f64], weight: &[f64]) {
+    pub fn add_weighted(&mut self, x: &[f64], weight: &[f64]) {
         for (xi, wi) in x.iter().zip(weight.iter()) {
             let wx = wi * xi;
             let wx2 = wx * xi;
@@ -171,7 +180,7 @@ impl NumericStatistics {
         }
     }
 
-    fn add(&mut self, x: &[f64]) {
+    pub fn add(&mut self, x: &[f64]) {
         for xi in x.iter() {
             let wx = xi;
             let wx2 = wx * xi;
@@ -219,7 +228,7 @@ impl NumericStatistics {
             self.maximum = analyzer.maximum;
         }
     }
-    fn mean(&self) -> Option<f64> {
+    pub fn mean(&self) -> Option<f64> {
         if self.sum_of_weights == 0.0 {
             None
         } else {
@@ -227,7 +236,7 @@ impl NumericStatistics {
         }
     }
 
-    fn variance(&self) -> Option<f64> {
+    pub fn variance(&self) -> Option<f64> {
         if self.sum_of_weights == 0.0 {
             None
         } else {
@@ -236,11 +245,11 @@ impl NumericStatistics {
         }
     }
 
-    fn stddev(&self) -> Option<f64> {
+    pub fn stddev(&self) -> Option<f64> {
         self.variance().map(|x| x.sqrt())
     }
     /// Skewness: https://en.wikipedia.org/wiki/Skewness
-    fn skewness(&self) -> Option<f64> {
+    pub fn skewness(&self) -> Option<f64> {
         if self.sum_of_weights == 0.0 {
             None
         } else {
@@ -254,7 +263,7 @@ impl NumericStatistics {
     }
 
     /// Calculates Fisher's kurtosis
-    fn kurtosis(&self) -> Option<f64> {
+    pub fn kurtosis(&self) -> Option<f64> {
         if self.sum_of_weights == 0.0 {
             None
         } else {
@@ -270,6 +279,37 @@ impl NumericStatistics {
             })
         }
     }
+}
+
+
+pub struct Parallelized{
+    analyzer: Arc<Mutex<NumericStatistics>>,
+    chunk_size:usize
+}
+
+impl Parallelized{
+    pub fn new()->Parallelized{
+        Parallelized{analyzer: Arc::new(Mutex::new(NumericStatistics::new())), chunk_size:4}
+    }
+    pub fn add(&mut self, x: &[f64]) {
+
+        let mut a = self.analyzer.lock().unwrap().create_empty();
+        
+        let increment = x.par_chunks(self.chunk_size).map_init(||{a.create_empty()}, |analyzer, chunk|{
+            analyzer.add(chunk);
+            analyzer.clone()
+        }).reduce(||{a.create_empty()}, |mut a,b|{a.add_analyzer(&b);a});
+
+        let mut a = self.analyzer.lock().unwrap();
+        a.add_analyzer(&increment);
+    }
+    pub fn measures(&self) -> Vec<Measure> {
+        self.analyzer.lock().unwrap().measures()
+    }
+    pub fn results(&self) -> HashMap<String, MeasureValue> {
+        self.analyzer.lock().unwrap().results()
+    }
+
 }
 
 #[cfg(test)]
@@ -335,12 +375,57 @@ mod tests {
         assert_eq!(res["minimum"].to_float(), Some(1.0));
         assert_eq!(res["maximum"].to_float(), Some(5.0));
     }
+
+    #[test]
+    fn test_all_measures_results_par() {
+        let mut analyzer = Parallelized::new();
+        analyzer.add(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+        let res = analyzer.results();
+        assert_eq!(res["mean"].to_float(), Some(3.0));
+        assert_eq!(res["variance"].to_float(), Some(2.0));
+        assert_eq!(res["stddev"].to_float(), Some(2.0_f64.sqrt()));
+        assert!(res["skewness"].to_float().unwrap().abs()<1e-5);
+        assert!((res["kurtosis"].to_float().unwrap()+1.3)<1e-5);
+        assert_eq!(res["minimum"].to_float(), Some(1.0));
+        assert_eq!(res["maximum"].to_float(), Some(5.0));
+    }
+
 }
 
 fn main() {
     println!("Hello, world!");
+    use std::time::Instant;
+    
+    
     let mut stat = NumericStatistics::new();
     stat.add(&[1., 2., 3., 4., 5.]);
     println!("Stat:    {:?}", stat);
     println!("Results: {:?}", stat.results());
+    
+    let mut rng = thread_rng();
+    let x: Vec<f64> = (&mut rng).sample_iter(Standard).take(1_000_0000).collect();
+    
+    println!();
+    let mut stat = NumericStatistics::new();
+    let now = Instant::now();
+    {stat.add(&x);}
+    let elapsed = now.elapsed();
+    println!("Elapsed1: {:?}", elapsed);
+    println!("Results: {:?}", stat.results());
+    let elapsed = now.elapsed();
+    println!("Elapsed2: {:?}", elapsed);
+
+    
+    println!();
+    let mut stat = Parallelized::new();
+    stat.chunk_size=10000;
+    let now = Instant::now();
+    {stat.add(&x);}
+    let elapsed = now.elapsed();
+    println!("Elapsed1: {:?}", elapsed);
+    println!("Results: {:?}", stat.results());
+    let elapsed = now.elapsed();
+    println!("Elapsed2: {:?}", elapsed);
+    
+    
 }
