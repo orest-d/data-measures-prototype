@@ -403,29 +403,30 @@ fn main() {
     println!("Results: {:?}", stat.results());
     
     let mut rng = thread_rng();
-    let x: Vec<f64> = (&mut rng).sample_iter(Standard).take(1_000_0000).collect();
+    let x: Vec<f64> = (&mut rng).sample_iter(Standard).take(1000_000).collect();
     
     println!();
     let mut stat = NumericStatistics::new();
     let now = Instant::now();
     {stat.add(&x);}
-    let elapsed = now.elapsed();
-    println!("Elapsed1: {:?}", elapsed);
+    let elapsed1 = now.elapsed();
+    println!("Elapsed1: {:?}", elapsed1);
     println!("Results: {:?}", stat.results());
-    let elapsed = now.elapsed();
-    println!("Elapsed2: {:?}", elapsed);
+    let elapsed2 = now.elapsed();
+    println!("Elapsed2: {:?}", elapsed2);
 
     
     println!();
     let mut stat = Parallelized::new();
-    stat.chunk_size=10000;
+    stat.chunk_size=1000;
     let now = Instant::now();
     {stat.add(&x);}
-    let elapsed = now.elapsed();
-    println!("Elapsed1: {:?}", elapsed);
+    let elapsed3 = now.elapsed();
+    println!("Elapsed1: {:?}", elapsed3);
     println!("Results: {:?}", stat.results());
-    let elapsed = now.elapsed();
-    println!("Elapsed2: {:?}", elapsed);
+    let elapsed4 = now.elapsed();
+    println!("Elapsed2: {:?}", elapsed4);
+    println!("Speedup: {:?}", elapsed1.as_secs_f64()/elapsed3.as_secs_f64());
     
     
 }
