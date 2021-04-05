@@ -20,6 +20,8 @@ use std::result::Result;
 use std::sync::Arc;
 use std::sync::Mutex;
 use rayon::prelude::*;
+
+use std::thread::{spawn, JoinHandle};
 //use rand::prelude::*;
 //use rand::thread_rng;
 //use rand::distributions::{Distribution, Standard};
@@ -329,6 +331,40 @@ impl Parallelized{
 
 }
 
+pub struct Background{
+    analyzer: Arc<Mutex<NumericStatistics>>,
+    handle: Option<JoinHandle<()>>
+}
+
+impl Background{
+    pub fn new()->Background{
+        Background{analyzer: Arc::new(Mutex::new(NumericStatistics::new())), handle:None}
+    }
+    
+    pub fn sync(&mut self){
+        if self.handle.is_some(){
+            self.handle.take().unwrap().join();
+        }
+    }
+    
+    pub fn add(&mut self, x: &[f64]) {
+        self.sync();
+        let a = Arc::clone(&self.analyzer);
+        let xx = Vec::from(x);
+        self.handle = Some(spawn(move ||{
+            a.lock().unwrap().add(&xx);
+        }));
+    }
+
+    pub fn measures(&self) -> Vec<Measure> {
+        self.analyzer.lock().unwrap().measures()
+    }
+    pub fn results(&self) -> HashMap<String, MeasureValue> {
+        self.analyzer.lock().unwrap().results()
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,14 +448,14 @@ mod tests {
 
 #[pyclass]
 struct RSNumericStatistics {
-    analyzer: NumericStatistics
+    analyzer: Background
 }
 
 #[pymethods]
 impl RSNumericStatistics {
     #[new]
     pub fn new()->Self{
-        RSNumericStatistics{analyzer:NumericStatistics::new()}
+        RSNumericStatistics{analyzer:Background::new()}
     }
     pub fn add(&mut self, x: Vec<f64>) -> PyResult<()>{
         self.analyzer.add(&x);
