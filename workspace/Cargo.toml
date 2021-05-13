@@ -1,7 +1,0 @@
-[workspace]
-
-members = [
-    "data-measures-core",
-    "data-measures-py",
-    "data-measures-wasm"
-]

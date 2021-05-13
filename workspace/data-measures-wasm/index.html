@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.9.95/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.2.18/dist/vuetify.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <title>Example</title>
+</head>
+<body>
+    <div id="app">
+        <v-app>
+            <v-navigation-drawer v-model="drawer" app>
+                <v-list dense>
+                    <v-list-item href="index.html">
+                        <v-list-item-action>
+                            <v-icon>mdi-home</v-icon>
+                        </v-list-item-action>
+                        <v-list-item-content>
+                            <v-list-item-title>Home</v-list-item-title>
+                        </v-list-item-content>
+                    </v-list-item>
+                </v-list>
+            </v-navigation-drawer>
+            <v-app-bar app color="indigo" dark>
+                <!--
+            <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
+        -->
+                <v-btn icon @click.stop="drawer = !drawer">
+                    <v-icon>mdi-menu</v-icon>
+                </v-btn>
+                <v-toolbar-title>Data Measures</v-toolbar-title>
+            </v-app-bar>
+            <v-content>
+                <div class="download" v-if="status=='LOADING'"></div>
+                <v-container class="fill-height" fluid>
+                    <v-row align="center" justify="center">
+                        <v-col class="text-center">
+                            <v-card>
+                                <v-row v-for="item in results_tab">
+                                  <v-col>{{item[0]}}</v-col>
+                                  <v-col>{{item[1]}}</v-col>
+                                </v-row>
+                                <v-row>
+                                    <v-col><v-btn @click="add()">Add</v-btn></v-col>
+                                  </v-row>
+                              </v-card>
+                        </v-col>
+                    </v-row>
+                </v-container>
+            </v-content>
+            <v-footer color="indigo" app>
+                <v-chip :color="status_color">{{status}}</v-chip>&nbsp;&nbsp;<span>{{message}}</span>
+                <v-spacer></v-spacer>
+                <span class="white--text">Orest Dubay &copy; 2020 </span>
+            </v-footer>
+        </v-app>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.2.18/dist/vuetify.js"></script>
+    <script src='data_measures_wasm.js'></script>
+    <script type="module">
+        window.vue = new Vue({
+            el: '#app',
+            vuetify: new Vuetify({
+                icons: {
+                    iconfont: 'mdi', // 'mdi' || 'mdiSvg' || 'md' || 'fa' || 'fa4' || 'faSvg'
+                },
+            }),            
+            data: {
+                wasm: null,
+                loaded_wasm: false,
+                data: {},
+                drawer: false,
+                status: "OK",
+                status_color: "",
+                message: "",
+                text: "?",
+                results_tab:["EMPTY"]
+            },
+            methods: {
+                error: function (message, reason) {
+                    if (message == "OK") {
+                        this.info(message);
+                    }
+                    else {
+                        this.status = "ERROR";
+                        this.status_color = "red";
+                        this.message = message;
+                        console.log("ERROR:" + message, reason);
+                    }
+                },
+                result: function (message) {
+                    if (message == "OK") {
+                        this.info(message);
+                    }
+                    else {
+                        this.error(message, "")
+                    }
+                },
+                info: function (message) {
+                    this.status = "OK";
+                    this.status_color = "green";
+                    this.message = message;
+                    console.log("INFO:" + message);
+                },
+                analytics_results: function () {
+                    if (this.loaded_wasm){
+                        var r = this.analytics.results();
+                        var d = {};
+                        for (const key in r){
+                            d[key]=Object.values(r[key])[0];
+                        }
+                        console.log("Results",r,"->",d);
+                        return d;
+                    }
+                    else{
+                        return {};
+                    }
+                },
+                add: function (){
+                    if (this.loaded_wasm){
+                        this.analytics.add([1+Math.random(),2+Math.random(),3+Math.random()]);
+                        this.results_tab=Object.entries(this.analytics_results());
+                        this.results_tab.sort();
+                    }
+                    else{
+                        this.error("Analytics library not loaded yet","");
+                    }
+
+                }
+
+                /*
+                load: function () {
+                    this.$http.get("/api/db.json").then(
+                        function (response) {
+                            response.text().then(
+                                function (data) {
+                                    this.error(this.tg.set_database_json(data));
+                                    this.data = this.tg.get_database();
+                                }.bind(this),
+                                function (data) {
+                                    this.error("Loading error (response text)", err);
+                                }.bind(this)
+                            )
+                        }.bind(this),
+                        function (err) {
+                            this.error("Loading error", err);
+                        }.bind(this)
+                    );
+                }
+                */
+            },
+            created: function () {
+                this.wasm = wasm_bindgen;
+
+                const run = async function () {
+                    await wasm_bindgen("data_measures_wasm_bg.wasm");
+                    this.text=this.wasm.greet("world");
+                    this.analytics=new this.wasm.Analytics();
+                    this.loaded_wasm = true;
+                }.bind(this);
+                run();
+            }
+        });  
+    </script>
+</body>
+</html>
