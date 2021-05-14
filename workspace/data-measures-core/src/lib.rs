@@ -3,7 +3,9 @@ extern crate regex;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
-//extern crate rayon;
+
+#[cfg(feature="multithreading")]
+extern crate rayon;
 
 #[macro_use]
 extern crate serde_derive;
@@ -12,13 +14,14 @@ use std::collections::HashMap;
 //use std::convert::{TryFrom, TryInto};
 use std::result::Result;
 
-/*
-//////////////////////////////// multithreaded
+#[cfg(feature="multithreading")]
 use std::sync::Arc;
+#[cfg(feature="multithreading")]
 use std::sync::Mutex;
+#[cfg(feature="multithreading")]
 use rayon::prelude::*;
+#[cfg(feature="multithreading")]
 use std::thread::{spawn, JoinHandle};
-*/
 
 
 
@@ -284,14 +287,13 @@ impl NumericStatistics {
     }
 }
 
-/*
-//////////////////////////////// multithreaded
-
+#[cfg(feature="multithreading")]
 pub struct Parallelized{
     analyzer: Arc<Mutex<NumericStatistics>>,
     chunk_size:usize
 }
 
+#[cfg(feature="multithreading")]
 impl Parallelized{
     pub fn new()->Parallelized{
         Parallelized{analyzer: Arc::new(Mutex::new(NumericStatistics::new())), chunk_size:4}
@@ -317,11 +319,13 @@ impl Parallelized{
 
 }
 
+#[cfg(feature="multithreading")]
 pub struct Background{
     analyzer: Arc<Mutex<NumericStatistics>>,
     handle: Option<JoinHandle<()>>
 }
 
+#[cfg(feature="multithreading")]
 impl Background{
     pub fn new()->Background{
         Background{analyzer: Arc::new(Mutex::new(NumericStatistics::new())), handle:None}
@@ -350,7 +354,6 @@ impl Background{
     }
 
 }
-*/
 
 
 #[cfg(test)]
@@ -417,9 +420,7 @@ mod tests {
         assert_eq!(res["maximum"].to_float(), Some(5.0));
     }
 
-    /*
-//////////////////////////////// multithreaded
-
+    #[cfg(feature="multithreading")]
     #[test]
     fn test_all_measures_results_par() {
         let mut analyzer = Parallelized::new();
@@ -433,6 +434,5 @@ mod tests {
         assert_eq!(res["minimum"].to_float(), Some(1.0));
         assert_eq!(res["maximum"].to_float(), Some(5.0));
     }
-    */
 }
 

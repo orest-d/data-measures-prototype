@@ -16,7 +16,7 @@ serde_json = "1.0.51"
 serde_yaml = "0.8.11"
 rayon = "1.5"
 rand = "0.8"
-data-measures-core = { path = "../data-measures-core" }
+data-measures-core = { path = "../data-measures-core", features =["multithreading"]}
 
 
 [dependencies.pyo3]
